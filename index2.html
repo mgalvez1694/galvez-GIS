@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Galvez GIS — Demo</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    :root{
+      --bg:#0b1220; --card:rgba(255,255,255,.06); --border:rgba(255,255,255,.12);
+      --text:rgba(255,255,255,.92); --muted:rgba(255,255,255,.70);
+      --shadow:0 18px 60px rgba(0,0,0,.45); --radius:18px;
+      --accent1:#0ea5e9; --accent2:#1d4ed8; --danger:#ef4444;
+      --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
+    }
+    @media (prefers-color-scheme: light){
+      :root{--bg:#f7f8fb; --card:#fff; --border:rgba(15,23,42,.12);
+        --text:rgba(15,23,42,.92); --muted:rgba(15,23,42,.70); --shadow:0 18px 60px rgba(2,6,23,.12);}
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; font-family:var(--font); background:var(--bg); color:var(--text)}
+    .container{max-width:1100px; margin:0 auto; padding:18px}
+    .brandbar{
+      display:flex; gap:14px; align-items:center; justify-content:space-between;
+      padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius);
+      background:linear-gradient(135deg, rgba(14,165,233,.16), rgba(29,78,216,.12));
+      box-shadow:var(--shadow);
+    }
+    .brandleft{display:flex; gap:12px; align-items:center}
+    .brandlogo{width:42px; height:42px; object-fit:contain}
+    .brandtitle{display:flex; flex-direction:column; line-height:1.05}
+    .brandtitle strong{font-size:16px; letter-spacing:.2px}
+    .brandtitle span{font-size:12px; color:var(--muted)}
+    .badge{font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,.06)}
+    .grid{display:grid; gap:14px; margin-top:14px}
+    @media (min-width: 900px){ .grid{grid-template-columns:380px 1fr} }
+    .card{border:1px solid var(--border); background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+    .cardheader{padding:14px 14px 0}
+    .cardheader h2{margin:0; font-size:16px}
+    .cardheader p{margin:8px 0 0; color:var(--muted); font-size:13px}
+    .cardbody{padding:14px}
+    label{display:block; font-size:12px; color:var(--muted); margin:10px 0 6px}
+    input, textarea{
+      width:100%; padding:11px 12px; border-radius:12px;
+      border:1px solid var(--border); outline:none; background:rgba(255,255,255,.04); color:var(--text)
+    }
+    textarea{min-height:92px; resize:vertical}
+    .row{display:flex; gap:10px}
+    .row>*{flex:1}
+    button{
+      width:100%; padding:11px 12px; border-radius:12px; border:1px solid var(--border);
+      background:linear-gradient(135deg, rgba(14,165,233,.95), rgba(29,78,216,.95));
+      color:#fff; font-weight:700; cursor:pointer
+    }
+    button.secondary{background:rgba(255,255,255,.06); color:var(--text); font-weight:650}
+    button.danger{background:rgba(239,68,68,.9)}
+    hr{border:none; border-top:1px solid var(--border); margin:14px 0}
+    .notice{padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); font-size:13px; color:var(--muted)}
+    .notice.ok{border-color:rgba(34,197,94,.45)}
+    .notice.err{border-color:rgba(239,68,68,.55)}
+    .sidebar{max-height:calc(100vh - 150px); overflow:auto}
+    #map{height:calc(100vh - 150px); min-height:520px}
+    .kv{display:grid; grid-template-columns:110px 1fr; gap:8px; font-size:13px}
+    .kv div:nth-child(odd){color:var(--muted)}
+    .footer{margin-top:14px; color:var(--muted); font-size:12px}
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="brandbar">
+      <div class="brandleft">
+        <img class="brandlogo" src="logo.png" alt="Galvez GIS">
+        <div class="brandtitle">
+          <strong>Galvez GIS</strong>
+          <span>Demo — captura en terreno + CSV (sin login)</span>
+        </div>
+      </div>
+      <div class="badge">DEMO</div>
+    </div>
+
+    <div class="grid">
+      <div class="card sidebar">
+        <div class="cardheader">
+          <h2>Herramientas</h2>
+          <p>PSAD56/UTM 19S (Norte/Este) + GPS móvil. Guarda local y exporta CSV.</p>
+        </div>
+        <div class="cardbody">
+          <div id="status" class="notice ok">Listo. Marca un punto o usa GPS.</div>
+
+          <label>Buscar por coordenadas</label>
+          <input id="coordInput" placeholder="Norte 6656557.818 Este 297724.236  |  -30.2,-71.1"/>
+          <button id="btnGo" style="margin-top:10px">Ir</button>
+
+          <hr/>
+
+          <div class="row">
+            <button class="secondary" id="btnGPS">📍 Usar GPS</button>
+            <button class="secondary" id="btnAddPin">📌 Marcar punto</button>
+          </div>
+
+          <hr/>
+
+          <label>Nombre / etiqueta</label>
+          <input id="obsName" placeholder="Ej: Muestra JG-01"/>
+
+          <label>Notas</label>
+          <textarea id="obsNotes" placeholder="Observaciones de terreno..."></textarea>
+
+          <label>Foto (opcional)</label>
+          <input id="obsPhoto" type="file" accept="image/*" capture="environment"/>
+
+          <button id="btnSave" style="margin-top:10px">Guardar punto (local)</button>
+
+          <div class="row" style="margin-top:10px">
+            <button class="secondary" id="btnExport">Exportar CSV</button>
+            <button class="danger" id="btnClear">Borrar puntos locales</button>
+          </div>
+
+          <hr/>
+          <h3 style="margin:0 0 10px; font-size:14px">Ficha del punto</h3>
+          <div id="info" class="notice">Toca el mapa o usa GPS para ver info.</div>
+
+          <div class="footer">GALVEZ spa · Demo v1.0</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardbody" style="padding:0">
+          <div id="map"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js"></script>
+
+  <script>
+    // Proyección PSAD56 / UTM 19S -> WGS84 (aprox; en v1.0 final refinamos si hace falta)
+    proj4.defs("EPSG:24879", "+proj=utm +zone=19 +south +ellps=intl +towgs84=-288,175,-376,0,0,0,0 +units=m +no_defs");
+    proj4.defs("EPSG:4326", "+proj=longlat +datum=WGS84 +no_defs");
+
+    const statusEl = document.getElementById("status");
+    const infoEl   = document.getElementById("info");
+
+    const KEY = "galvez_gis_demo_points";
+    const getPoints = () => { try { return JSON.parse(localStorage.getItem(KEY)||"[]"); } catch { return []; } };
+    const setPoints = (p) => localStorage.setItem(KEY, JSON.stringify(p));
+
+    function show(ok, msg){
+      statusEl.className = "notice " + (ok ? "ok" : "err");
+      statusEl.textContent = msg;
+    }
+
+    function parseCoords(txt){
+      if (!txt) return null;
+      const t = txt.trim();
+
+      // Lat,Lon
+      const m1 = t.match(/(-?\d{1,2}\.\d+)\s*[,; ]\s*(-?\d{1,3}\.\d+)/);
+      if (m1){
+        const a = parseFloat(m1[1]), b = parseFloat(m1[2]);
+        let lat, lon;
+        if (Math.abs(b) > Math.abs(a) && Math.abs(b) <= 180){ lat=a; lon=b; } else { lon=a; lat=b; }
+        if (Math.abs(lat)<=90 && Math.abs(lon)<=180) return {lat, lon, src:"WGS84"};
+      }
+
+      // Norte/Este PSAD56 19S (acepta puntos miles y coma decimal)
+      const clean = t.replace(/\./g,"").replace(/,/g,".").toLowerCase();
+      const mn = clean.match(/norte[: ]+(\d+(?:\.\d+)?)/);
+      const me = clean.match(/este[: ]+(\d+(?:\.\d+)?)/);
+      if (mn && me){
+        const n = parseFloat(mn[1]), e = parseFloat(me[1]);
+        const out = proj4("EPSG:24879","EPSG:4326",[e,n]);
+        return { lat: out[1], lon: out[0], src:"PSAD56/UTM19S" };
+      }
+      return null;
+    }
+
+    const map = L.map("map").setView([-33.4,-70.6], 5);
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom:19, attribution:"Esri World Imagery" }
+    ).addTo(map);
+
+    let marker = null;
+    let current = null;
+
+    function setMarker(lat, lon){
+      current = {lat, lon};
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([lat, lon]).addTo(map);
+      map.setView([lat, lon], Math.max(map.getZoom(), 13));
+
+      infoEl.innerHTML = `
+        <div class="kv"><div>Lat/Lon</div><div>${lat.toFixed(6)}, ${lon.toFixed(6)}</div></div>
+        <div class="kv"><div>Fecha</div><div>${new Date().toLocaleString()}</div></div>
+      `;
+    }
+
+    map.on("click", (e) => setMarker(e.latlng.lat, e.latlng.lng));
+
+    document.getElementById("btnGo").addEventListener("click", () => {
+      const c = parseCoords(document.getElementById("coordInput").value);
+      if (!c) return show(false, "No pude interpretar esas coordenadas.");
+      setMarker(c.lat, c.lon);
+      show(true, `Centro en ${c.src}`);
+    });
+
+    document.getElementById("btnGPS").addEventListener("click", () => {
+      if (!navigator.geolocation) return show(false, "GPS no disponible en este navegador.");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { setMarker(pos.coords.latitude, pos.coords.longitude); show(true, "GPS capturado."); },
+        (err) => show(false, err.message || "Error al obtener GPS."),
+        { enableHighAccuracy:true, timeout:15000 }
+      );
+    });
+
+    document.getElementById("btnAddPin").addEventListener("click", () => show(true, "Toca el mapa para marcar un punto."));
+
+    async function fileToDataUrl(file){
+      return await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    }
+
+    document.getElementById("btnSave").addEventListener("click", async () => {
+      if (!current) return show(false, "Primero marca un punto o usa GPS.");
+
+      const pts = getPoints();
+      const when = new Date().toISOString();
+      const file = document.getElementById("obsPhoto").files?.[0];
+
+      const item = {
+        lat: current.lat,
+        lon: current.lon,
+        name: document.getElementById("obsName").value || "",
+        notes: document.getElementById("obsNotes").value || "",
+        when,
+        photoName: file ? (file.name || ("foto_"+when+".jpg")) : ""
+      };
+
+      // En demo guardamos solo el nombre de la foto (no subimos a web)
+      // (v1.0 real: la foto se sube a Storage y queda visible para todos)
+      if (file) item.photoDataUrl = await fileToDataUrl(file);
+
+      pts.push(item);
+      setPoints(pts);
+
+      document.getElementById("obsName").value = "";
+      document.getElementById("obsNotes").value = "";
+      document.getElementById("obsPhoto").value = "";
+
+      show(true, `Guardado local. Total puntos: ${pts.length}.`);
+    });
+
+    function toCSV(rows){
+      const esc = (v) => `"${(v??"").toString().replace(/\r?\n/g," ").replace(/"/g,'""')}"`;
+      const header = ["lat","lon","name","notes","when","photoName"];
+      const lines = [header.join(",")];
+      for (const r of rows) lines.push(header.map(k => esc(r[k])).join(","));
+      return lines.join("\n");
+    }
+
+    document.getElementById("btnExport").addEventListener("click", () => {
+      const rows = getPoints();
+      const csv = toCSV(rows);
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `galvez_gis_demo_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      show(true, "CSV exportado.");
+    });
+
+    document.getElementById("btnClear").addEventListener("click", () => {
+      setPoints([]);
+      show(true, "Puntos locales borrados.");
+    });
+  </script>
+</body>
+</html>
