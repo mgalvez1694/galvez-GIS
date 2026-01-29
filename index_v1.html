@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Galvez GIS — Demo</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <style>
+    :root{
+      --bg:#0b1220; --card:rgba(255,255,255,.06); --border:rgba(255,255,255,.12);
+      --text:rgba(255,255,255,.92); --muted:rgba(255,255,255,.70);
+      --shadow:0 18px 60px rgba(0,0,0,.45); --radius:18px;
+      --accent1:#0ea5e9; --accent2:#1d4ed8; --danger:#ef4444;
+      --font:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
+    }
+    @media (prefers-color-scheme: light){
+      :root{--bg:#f7f8fb; --card:#fff; --border:rgba(15,23,42,.12);
+        --text:rgba(15,23,42,.92); --muted:rgba(15,23,42,.70); --shadow:0 18px 60px rgba(2,6,23,.12);}
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; font-family:var(--font); background:var(--bg); color:var(--text)}
+    .container{max-width:1100px; margin:0 auto; padding:18px}
+    .brandbar{
+      display:flex; gap:14px; align-items:center; justify-content:space-between;
+      padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius);
+      background:linear-gradient(135deg, rgba(14,165,233,.16), rgba(29,78,216,.12));
+      box-shadow:var(--shadow);
+    }
+    .brandleft{display:flex; gap:12px; align-items:center}
+    .brandlogo{width:42px; height:42px; object-fit:contain}
+    .brandtitle{display:flex; flex-direction:column; line-height:1.05}
+    .brandtitle strong{font-size:16px; letter-spacing:.2px}
+    .brandtitle span{font-size:12px; color:var(--muted)}
+    .badge{font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border); background:rgba(255,255,255,.06)}
+    .grid{display:grid; gap:14px; margin-top:14px}
+    @media (min-width: 900px){ .grid{grid-template-columns:380px 1fr} }
+    .card{border:1px solid var(--border); background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+    .cardheader{padding:14px 14px 0}
+    .cardheader h2{margin:0; font-size:16px}
+    .cardheader p{margin:8px 0 0; color:var(--muted); font-size:13px}
+    .cardbody{padding:14px}
+    label{display:block; font-size:12px; color:var(--muted); margin:10px 0 6px}
+    input, textarea{
+      width:100%; padding:11px 12px; border-radius:12px;
+      border:1px solid var(--border); outline:none; background:rgba(255,255,255,.04); color:var(--text)
+    }
+    textarea{min-height:92px; resize:vertical}
+    .row{display:flex; gap:10px}
+    .row>*{flex:1}
+    button{
+      width:100%; padding:11px 12px; border-radius:12px; border:1px solid var(--border);
+      background:linear-gradient(135deg, rgba(14,165,233,.95), rgba(29,78,216,.95));
+      color:#fff; font-weight:700; cursor:pointer
+    }
+    button.secondary{background:rgba(255,255,255,.06); color:var(--text); font-weight:650}
+    button.danger{background:rgba(239,68,68,.9)}
+    hr{border:none; border-top:1px solid var(--border); margin:14px 0}
+    .notice{padding:10px 12px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,.04); font-size:13px; color:var(--muted)}
+    .notice.ok{border-color:rgba(34,197,94,.45)}
+    .notice.err{border-color:rgba(239,68,68,.55)}
+    .sidebar{max-height:calc(100vh - 150px); overflow:auto}
+    #map{height:calc(100vh - 150px); min-height:520px}
+    .kv{display:grid; grid-template-columns:110px 1fr; gap:8px; font-size:13px}
+    .kv div:nth-child(odd){color:var(--muted)}
+    .footer{margin-top:14px; color:var(--muted); font-size:12px}
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="brandbar">
+      <div class="brandleft">
+        <img class="brandlogo" src="logo.png" alt="Galvez GIS">
+        <div class="brandtitle">
+          <strong>Galvez GIS</strong>
+          <span>Demo — captura en terreno + CSV (sin login)</span>
+        </div>
+      </div>
+      <div class="badge">DEMO</div>
+    </div>
+
+    <div class="grid">
+      <div class="card sidebar">
+        <div class="cardheader">
+          <h2>Herramientas</h2>
+          <p>PSAD56/UTM 19S (Norte/Este) + GPS móvil. Guarda local y exporta CSV.</p>
+        </div>
+        <div class="cardbody">
+          <div id="status" class="notice ok">Listo. Marca un punto o usa GPS.</div>
+
+          <label style="margin-top:12px; display:flex; align-items:center; gap:10px">
+            <input id="chkGeol" type="checkbox" style="width:auto; transform:scale(1.05)"/>
+            <span style="font-size:13px; color:var(--text)">🪨 Mostrar mapa geológico (Chile)</span>
+          </label>
+          <div class="notice" style="margin-top:8px" id="geolStatus">Mapa geológico: no cargado aún.</div>
+
+          <label>Buscar por coordenadas</label>
+          <input id="coordInput" placeholder="Norte 6656557.818 Este 297724.236  |  -30.2,-71.1"/>
+          <button id="btnGo" style="margin-top:10px">Ir</button>
+
+          <hr/>
+
+          <div class="row">
+            <button class="secondary" id="btnGPS">📍 Usar GPS</button>
+            <button class="secondary" id="btnAddPin">📌 Marcar punto</button>
+          </div>
+
+          <hr/>
+
+          <label>Nombre / etiqueta</label>
+          <input id="obsName" placeholder="Ej: Muestra JG-01"/>
+
+          <label>Notas</label>
+          <textarea id="obsNotes" placeholder="Observaciones de terreno..."></textarea>
+
+          <label>Foto (opcional)</label>
+          <input id="obsPhoto" type="file" accept="image/*" capture="environment"/>
+
+          <label>Adjuntar PDFs (opcional)</label>
+          <input id="obsPDF" type="file" accept="application/pdf" multiple/>
+          <div id="pdfList" class="notice" style="margin-top:8px">Sin PDFs adjuntos.</div>
+
+          <button id="btnSave" style="margin-top:10px">Guardar punto (local)</button>
+
+          <div class="row" style="margin-top:10px">
+            <button class="secondary" id="btnReport">📝 Generar informe (HTML)</button>
+          </div>
+
+          <div class="row" style="margin-top:10px">
+            <button class="secondary" id="btnExport">Exportar CSV</button>
+            <button class="danger" id="btnClear">Borrar puntos locales</button>
+          </div>
+
+          <hr/>
+          <h3 style="margin:0 0 10px; font-size:14px">Ficha del punto</h3>
+          <div id="info" class="notice">Toca el mapa o usa GPS para ver info.</div>
+
+          <div class="footer">GALVEZ spa · v1.0 (geología + adjuntos local)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardbody" style="padding:0">
+          <div id="map"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js"></script>
+
+  <script>
+    // Proyección PSAD56 / UTM 19S -> WGS84 (aprox; en v1.0 final refinamos si hace falta)
+    proj4.defs("EPSG:24879", "+proj=utm +zone=19 +south +ellps=intl +towgs84=-288,175,-376,0,0,0,0 +units=m +no_defs");
+    proj4.defs("EPSG:4326", "+proj=longlat +datum=WGS84 +no_defs");
+
+    const statusEl = document.getElementById("status");
+    const infoEl   = document.getElementById("info");
+
+    const geolStatusEl = document.getElementById("geolStatus");
+
+    const KEY = "galvez_gis_demo_points";
+    const getPoints = () => { try { return JSON.parse(localStorage.getItem(KEY)||"[]"); } catch { return []; } };
+    const setPoints = (p) => localStorage.setItem(KEY, JSON.stringify(p));
+
+    function show(ok, msg){
+      statusEl.className = "notice " + (ok ? "ok" : "err");
+      statusEl.textContent = msg;
+    }
+
+    function parseCoords(txt){
+      if (!txt) return null;
+      const t = txt.trim();
+
+      // 1) Lat,Lon (WGS84)  -> "-30.2,-71.1" o "-71.1 -30.2"
+      const m1 = t.match(/(-?\d{1,2}\.\d+)\s*[,; ]\s*(-?\d{1,3}\.\d+)/);
+      if (m1){
+        const a = parseFloat(m1[1]), b = parseFloat(m1[2]);
+        let lat, lon;
+        // Heurística: el valor con |.|<=90 es lat
+        if (Math.abs(a) <= 90 && Math.abs(b) <= 180){
+          // puede venir lat,lon
+          lat = a; lon = b;
+        }else if (Math.abs(b) <= 90 && Math.abs(a) <= 180){
+          // viene lon,lat
+          lat = b; lon = a;
+        }else{
+          // fallback
+          if (Math.abs(b) > Math.abs(a) && Math.abs(b) <= 180){ lat=a; lon=b; } else { lon=a; lat=b; }
+        }
+        if (Math.abs(lat)<=90 && Math.abs(lon)<=180) return {lat, lon, src:"WGS84"};
+      }
+
+      // Normaliza separadores:
+      // - Si hay coma, asumimos coma decimal y puntos como miles (1.234.567,89)
+      // - Si no hay coma, asumimos punto decimal (6656557.818)
+      let clean = t.toLowerCase();
+      if (clean.includes(",")){
+        clean = clean.replace(/\./g,"").replace(/,/g,".");
+      }else{
+        clean = clean.replace(/,/g,""); // elimina comas miles
+      }
+
+      // 2) Norte/Este con etiquetas
+      const mn = clean.match(/norte[: ]+(\d+(?:\.\d+)?)/);
+      const me = clean.match(/este[: ]+(\d+(?:\.\d+)?)/);
+      if (mn && me){
+        const n = parseFloat(mn[1]), e = parseFloat(me[1]);
+        const out = proj4("EPSG:24879","EPSG:4326",[e,n]);
+        return { lat: out[1], lon: out[0], src:"PSAD56/UTM19S" };
+      }
+
+      // 3) Dos números sueltos (ej: "6656557.818 297724.236")
+      const nums = clean.match(/-?\d+(?:\.\d+)?/g);
+      if (nums && nums.length >= 2){
+        const a = parseFloat(nums[0]), b = parseFloat(nums[1]);
+        // UTM Chile: N ~ 5,8–7,2 millones; E ~ 150k–850k
+        let n, e;
+        if (a > 1000000 && b < 1000000){ n = a; e = b; }
+        else if (b > 1000000 && a < 1000000){ n = b; e = a; }
+        if (n && e){
+          const out = proj4("EPSG:24879","EPSG:4326",[e,n]);
+          return { lat: out[1], lon: out[0], src:"PSAD56/UTM19S" };
+        }
+      }
+
+      return null;
+    }
+
+
+    // ---------- Geología (GeoJSON estático) ----------
+    // Sube "geologia.geojson" al mismo directorio que este index.html (GitHub Pages).
+    // El archivo se genera desde tu GPKG (Chile) y permite consultar la unidad/edad en el punto.
+
+    let geology = { loaded:false, features:[], bboxes:[] }; // bboxes: [{minX,minY,maxX,maxY,i}]
+    let geologyLayer = null;
+    let lastGeology = null;
+
+    function setGeolStatus(ok, msg){
+      geolStatusEl.className = "notice " + (ok ? "ok" : "err");
+      geolStatusEl.textContent = msg;
+    }
+
+    function bboxFromCoords(coords, bbox){
+      // coords can be nested arrays until numbers
+      if (typeof coords[0] === "number"){
+        const x = coords[0], y = coords[1];
+        if (x < bbox.minX) bbox.minX = x;
+        if (y < bbox.minY) bbox.minY = y;
+        if (x > bbox.maxX) bbox.maxX = x;
+        if (y > bbox.maxY) bbox.maxY = y;
+        return;
+      }
+      for (const c of coords) bboxFromCoords(c, bbox);
+    }
+
+    function geomBbox(geometry){
+      const bbox = {minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity};
+      bboxFromCoords(geometry.coordinates, bbox);
+      return bbox;
+    }
+
+    // Ray casting (even-odd) + soporte de holes y multipolígonos
+    function pointInRing(pt, ring){
+      const x = pt[0], y = pt[1];
+      let inside = false;
+      for (let i=0, j=ring.length-1; i<ring.length; j=i++){
+        const xi = ring[i][0], yi = ring[i][1];
+        const xj = ring[j][0], yj = ring[j][1];
+        const intersect = ((yi>y) !== (yj>y)) && (x < (xj-xi)*(y-yi)/((yj-yi)||1e-12) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function pointInPolygon(pt, poly){
+      // poly: [outerRing, hole1, hole2...]
+      if (!pointInRing(pt, poly[0])) return false;
+      for (let h=1; h<poly.length; h++){
+        if (pointInRing(pt, poly[h])) return false;
+      }
+      return true;
+    }
+
+    function pointInGeometry(pt, geom){
+      if (!geom) return false;
+      if (geom.type === "Polygon") return pointInPolygon(pt, geom.coordinates);
+      if (geom.type === "MultiPolygon"){
+        for (const poly of geom.coordinates){
+          if (pointInPolygon(pt, poly)) return true;
+        }
+        return false;
+      }
+      return false;
+    }
+
+    async function loadGeology(){
+      if (geology.loaded) return true;
+      try{
+        setGeolStatus(true, "Cargando mapa geológico (GeoJSON)...");
+        const res = await fetch("geologia.geojson", {cache:"no-store"});
+        if (!res.ok) throw new Error("HTTP "+res.status);
+        const gj = await res.json();
+
+        geology.features = gj.features || [];
+        geology.bboxes = geology.features.map((ft, i) => {
+          const b = geomBbox(ft.geometry);
+          return { ...b, i };
+        });
+        geology.loaded = true;
+
+        setGeolStatus(true, `Mapa geológico cargado: ${geology.features.length.toLocaleString()} polígonos.`);
+        return true;
+      }catch(err){
+        console.error(err);
+        setGeolStatus(false, "No pude cargar geologia.geojson. Revisa que exista en el repo y que GitHub Pages lo publique.");
+        return false;
+      }
+    }
+
+    function geologyAtPoint(lat, lon){
+      if (!geology.loaded) return null;
+      const pt = [lon, lat];
+      for (const b of geology.bboxes){
+        if (lon < b.minX || lon > b.maxX || lat < b.minY || lat > b.maxY) continue;
+        const ft = geology.features[b.i];
+        if (pointInGeometry(pt, ft.geometry)) return ft;
+      }
+      return null;
+    }
+
+    function formatGeologyProps(p){
+      if (!p) return "Sin coincidencia en mapa geológico.";
+      const edad = [p.EDAD_MIN, p.EDAD_MAX].filter(Boolean).join(" – ");
+      const unidad = p.FORMACION || p.GRUPO || p.NOM_S_CRO || p.CD_GEOL || "";
+      const rocas = [p.ROCA1, p.ROCA2, p.ROCA3].filter(Boolean).join(", ");
+      const amb = p.AMBIENTE || "";
+      const desc = p.DESCRIPCIO || "";
+      const parts = [];
+      if (unidad) parts.push(`<div class="kv"><div>Unidad</div><div>${unidad}</div></div>`);
+      if (edad) parts.push(`<div class="kv"><div>Edad</div><div>${edad}</div></div>`);
+      if (amb) parts.push(`<div class="kv"><div>Ambiente</div><div>${amb}</div></div>`);
+      if (rocas) parts.push(`<div class="kv"><div>Litología</div><div>${rocas}</div></div>`);
+      if (desc) parts.push(`<div class="kv"><div>Descripción</div><div>${desc}</div></div>`);
+      return parts.join("");
+    }
+
+
+    function utmPSAD56(lat, lon){
+      const out = proj4("EPSG:4326","EPSG:24879",[lon, lat]);
+      return {e: out[0], n: out[1]};
+    }
+
+    function renderInfoHtml(lat, lon){
+      const utm = utmPSAD56(lat, lon);
+      const geolHtml = geology.loaded
+        ? (lastGeology ? formatGeologyProps(lastGeology.properties) : '<div class="kv"><div>Geología</div><div>Sin coincidencia.</div></div>')
+        : '<div class="kv"><div>Geología</div><div>(cargando…)</div></div>';
+
+      return `
+        <div class="kv"><div>Lat/Lon</div><div>${lat.toFixed(6)}, ${lon.toFixed(6)}</div></div>
+        <div class="kv"><div>UTM (PSAD56)</div><div>N ${utm.n.toFixed(3)} · E ${utm.e.toFixed(3)}</div></div>
+        <div class="kv"><div>Fecha</div><div>${new Date().toLocaleString()}</div></div>
+        <hr style="margin:12px 0"/>
+        <h4 style="margin:0 0 8px; font-size:13px">Mapa geológico</h4>
+        ${geolHtml || ""}
+      `;
+    }
+
+    async function refreshGeologyForCurrent(){
+      if (!current) return;
+      if (!geology.loaded){
+        await loadGeology();
+      }
+      lastGeology = geologyAtPoint(current.lat, current.lon);
+      infoEl.innerHTML = renderInfoHtml(current.lat, current.lon);
+    }
+
+
+    const map = L.map("map").setView([-33.4,-70.6], 5);
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { maxZoom:19, attribution:"Esri World Imagery" }
+    ).addTo(map);
+
+    // Toggle de capa geológica (solo se dibuja si se activa; la consulta funciona igual)
+    const chkGeol = document.getElementById("chkGeol");
+    chkGeol.addEventListener("change", async (e) => {
+      const on = !!e.target.checked;
+      if (on){
+        const ok = await loadGeology();
+        if (!ok) { e.target.checked = false; return; }
+        if (!geologyLayer){
+          geologyLayer = L.geoJSON({type:"FeatureCollection", features: geology.features}, {
+            style: () => ({weight:0.7, fillOpacity:0.22})
+          });
+        }
+        geologyLayer.addTo(map);
+        show(true, "Capa geológica activada.");
+      }else{
+        if (geologyLayer) map.removeLayer(geologyLayer);
+        show(true, "Capa geológica oculta.");
+      }
+      if (current) refreshGeologyForCurrent();
+    });
+
+    let marker = null;
+    let current = null;
+
+    function setMarker(lat, lon){
+      current = {lat, lon};
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([lat, lon]).addTo(map);
+      map.setView([lat, lon], Math.max(map.getZoom(), 13));
+
+      infoEl.innerHTML = renderInfoHtml(lat, lon);
+      // Consulta geología en segundo plano (cuando el GeoJSON esté listo)
+      refreshGeologyForCurrent();
+}
+
+    map.on("click", (e) => setMarker(e.latlng.lat, e.latlng.lng));
+
+    document.getElementById("btnGo").addEventListener("click", () => {
+      const c = parseCoords(document.getElementById("coordInput").value);
+      if (!c) return show(false, "No pude interpretar esas coordenadas.");
+      setMarker(c.lat, c.lon);
+      show(true, `Centro en ${c.src}`);
+    });
+
+    document.getElementById("btnGPS").addEventListener("click", () => {
+      if (!navigator.geolocation) return show(false, "GPS no disponible en este navegador.");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { setMarker(pos.coords.latitude, pos.coords.longitude); show(true, "GPS capturado."); },
+        (err) => show(false, err.message || "Error al obtener GPS."),
+        { enableHighAccuracy:true, timeout:15000 }
+      );
+    });
+
+    document.getElementById("btnAddPin").addEventListener("click", () => show(true, "Toca el mapa para marcar un punto."));
+
+    async function fileToDataUrl(file){
+      return await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    }
+
+    // PDFs adjuntos (demo local): se guardan como DataURL dentro del punto.
+    // Ojo: si adjuntas PDFs muy grandes, el navegador puede quedar lento.
+    const pdfInput = document.getElementById("obsPDF");
+    const pdfListEl = document.getElementById("pdfList");
+    let pendingPDFs = []; // File[]
+
+    function refreshPdfList(){
+      if (!pendingPDFs.length){
+        pdfListEl.textContent = "Sin PDFs adjuntos.";
+        return;
+      }
+      pdfListEl.innerHTML = pendingPDFs.map(f => `📄 ${f.name} (${Math.round((f.size||0)/1024)} KB)`).join("<br/>");
+    }
+
+    pdfInput.addEventListener("change", () => {
+      pendingPDFs = Array.from(pdfInput.files || []);
+      refreshPdfList();
+    });
+
+    async function pdfFilesToData(rows){
+      const out = [];
+      for (const f of rows){
+        out.push({name: f.name, dataUrl: await fileToDataUrl(f)});
+      }
+      return out;
+    }
+
+    document.getElementById("btnSave").addEventListener("click", async () => {
+      if (!current) return show(false, "Primero marca un punto o usa GPS.");
+
+      const pts = getPoints();
+      const when = new Date().toISOString();
+      const file = document.getElementById("obsPhoto").files?.[0];
+
+      const utm = proj4("EPSG:4326","EPSG:24879",[current.lon, current.lat]);
+      const geol = lastGeology ? (lastGeology.properties || {}) : {};
+      const pdfs = pendingPDFs.length ? await pdfFilesToData(pendingPDFs) : [];
+
+      const item = {
+        lat: current.lat,
+        lon: current.lon,
+        utm_n: utm[1],
+        utm_e: utm[0],
+        geol_cd: geol.CD_GEOL || "",
+        edad_min: geol.EDAD_MIN || "",
+        edad_max: geol.EDAD_MAX || "",
+        formacion: geol.FORMACION || "",
+        grupo: geol.GRUPO || "",
+        ambiente: geol.AMBIENTE || "",
+        roca1: geol.ROCA1 || "",
+        roca2: geol.ROCA2 || "",
+        roca3: geol.ROCA3 || "",
+        pdfs,
+        name: document.getElementById("obsName").value || "",
+        notes: document.getElementById("obsNotes").value || "",
+        when,
+        photoName: file ? (file.name || ("foto_"+when+".jpg")) : ""
+      };
+
+      // En demo guardamos solo el nombre de la foto (no subimos a web)
+      // (v1.0 real: la foto se sube a Storage y queda visible para todos)
+      if (file) item.photoDataUrl = await fileToDataUrl(file);
+
+      pts.push(item);
+      setPoints(pts);
+
+      document.getElementById("obsName").value = "";
+      document.getElementById("obsNotes").value = "";
+      document.getElementById("obsPhoto").value = "";
+      document.getElementById("obsPDF").value = "";
+      pendingPDFs = [];
+      refreshPdfList();
+
+      show(true, `Guardado local. Total puntos: ${pts.length}.`);
+    });
+
+    
+    document.getElementById("btnReport").addEventListener("click", async () => {
+      if (!current) return show(false, "Primero marca un punto o usa GPS.");
+      await refreshGeologyForCurrent();
+
+      const pts = getPoints();
+      const last = pts[pts.length-1]; // si guardaste recién
+      const geol = lastGeology ? (lastGeology.properties||{}) : {};
+
+      const html = `
+        <html><head><meta charset="utf-8"/>
+          <title>Informe geológico — Galvez GIS</title>
+          <style>
+            body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:24px}
+            h1{margin:0 0 6px}
+            .muted{color:#555}
+            .box{border:1px solid #ddd; border-radius:12px; padding:14px; margin:12px 0}
+            table{border-collapse:collapse; width:100%}
+            td{padding:6px 8px; border-bottom:1px solid #eee; vertical-align:top}
+            td:first-child{width:220px; color:#555}
+          </style>
+        </head><body>
+          <h1>Informe geológico — Punto de interés</h1>
+          <div class="muted">${new Date().toLocaleString()}</div>
+
+          <div class="box">
+            <h3 style="margin:0 0 8px">Coordenadas</h3>
+            <table>
+              <tr><td>Lat/Lon (WGS84)</td><td>${current.lat.toFixed(6)}, ${current.lon.toFixed(6)}</td></tr>
+              <tr><td>UTM PSAD56 / 19S</td><td>N ${proj4("EPSG:4326","EPSG:24879",[current.lon,current.lat])[1].toFixed(3)} · E ${proj4("EPSG:4326","EPSG:24879",[current.lon,current.lat])[0].toFixed(3)}</td></tr>
+            </table>
+          </div>
+
+          <div class="box">
+            <h3 style="margin:0 0 8px">Mapa geológico de Chile</h3>
+            <table>
+              <tr><td>Unidad</td><td>${geol.FORMACION||geol.GRUPO||geol.NOM_S_CRO||geol.CD_GEOL||""}</td></tr>
+              <tr><td>Edad</td><td>${[geol.EDAD_MIN,geol.EDAD_MAX].filter(Boolean).join(" – ")}</td></tr>
+              <tr><td>Ambiente</td><td>${geol.AMBIENTE||""}</td></tr>
+              <tr><td>Litología</td><td>${[geol.ROCA1,geol.ROCA2,geol.ROCA3].filter(Boolean).join(", ")}</td></tr>
+              <tr><td>Descripción</td><td>${geol.DESCRIPCIO||""}</td></tr>
+            </table>
+          </div>
+
+          <div class="box">
+            <h3 style="margin:0 0 8px">Observaciones</h3>
+            <table>
+              <tr><td>Nombre/etiqueta</td><td>${document.getElementById("obsName").value || ""}</td></tr>
+              <tr><td>Notas</td><td>${(document.getElementById("obsNotes").value||"").replace(/</g,"&lt;")}</td></tr>
+            </table>
+          </div>
+
+          <div class="box">
+            <h3 style="margin:0 0 8px">Adjuntos (local)</h3>
+            <div>${(pendingPDFs||[]).length ? pendingPDFs.map(f=>`📄 ${f.name}`).join("<br/>") : "Sin PDFs"}</div>
+          </div>
+
+          <div class="muted">Galvez GIS · v1.0</div>
+          <script>window.print();</script>
+        </body></html>
+      `;
+      const w = window.open("", "_blank");
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      show(true, "Informe abierto en nueva pestaña (imprimir / guardar como PDF).");
+    });
+
+
+    function toCSV(rows){
+      const esc = (v) => `"${(v??"").toString().replace(/\r?\n/g," ").replace(/"/g,'""')}"`;
+      const header = ["lat","lon","utm_n","utm_e","geol_cd","edad_min","edad_max","formacion","grupo","ambiente","roca1","roca2","roca3","name","notes","when","photoName","pdfCount"];
+      const lines = [header.join(",")];
+      for (const r of rows){
+        const r2 = { ...r, pdfCount: (r.pdfs ? r.pdfs.length : 0) };
+        lines.push(header.map(k => esc(r2[k])).join(","));
+      }
+      return lines.join("\n");
+    }
+
+    document.getElementById("btnExport").addEventListener("click", () => {
+      const rows = getPoints();
+      const csv = toCSV(rows);
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `galvez_gis_demo_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      show(true, "CSV exportado.");
+    });
+
+    document.getElementById("btnClear").addEventListener("click", () => {
+      setPoints([]);
+      show(true, "Puntos locales borrados.");
+    });
+  </script>
+</body>
+</html>
